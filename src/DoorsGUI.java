@@ -89,7 +89,8 @@ public class DoorsGUI extends Pane {
                         "-fx-background-radius: 5px;"
         );
 
-        // button for door [revised]
+        // REVISION STARTS HERE; DELETE ALL TO REPAIR ORIGINAL CODE
+        // button for door
         doorButton.setOnAction(event -> requestDoorMovement());
         getChildren().addAll(doorPane, doorButton);
         StackPane.setAlignment(doorButton, Pos.BOTTOM_CENTER);

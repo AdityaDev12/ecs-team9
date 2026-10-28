@@ -1,0 +1,8 @@
+run Scripts/Normal.txt
+wait 500
+run Scripts/obstruction.txt
+wait 500
+run Scripts/overload.txt
+wait 500
+run Scripts/speed.txt
+echo ALL DONE

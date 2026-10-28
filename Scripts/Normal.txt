@@ -1,0 +1,7 @@
+echo SCENARIO 1 - normal open and close
+speed 10
+open
+wait 1500
+close
+wait 1500
+echo SCENARIO 1 done

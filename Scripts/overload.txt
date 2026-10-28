@@ -1,0 +1,14 @@
+echo SCENARIO 3 - weight overload
+speed 10
+open
+wait 1200
+press overload
+wait 300
+close
+wait 500
+echo close was refused
+release overload
+wait 300
+close
+wait 1500
+echo SCENARIO 3 done

@@ -1,0 +1,11 @@
+echo SCENARIO 2 - obstruction while closing
+speed 8
+open
+wait 1200
+close
+wait 400
+press obstruction
+wait 1200
+release obstruction
+wait 300
+echo SCENARIO 2 done

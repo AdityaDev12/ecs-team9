@@ -106,7 +106,6 @@ public final class NetworkMessenger implements Messenger {
         try {
             socket.close();
         } catch (IOException ignored) {
-            // shutting down anyway
         }
     }
 }

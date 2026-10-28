@@ -38,8 +38,9 @@ public final class FakeDoor implements Runnable {
     }
 
     public String status() {
-        return percentOpen + "%.1f%% open, moving=%c" + moving + ", speed=%.1f" + speed
-                + ", obstruction=%s" + obstruction + ", overload=%s" + overload;
+        return String.format(
+                "%.1f%% open, moving=%c, speed=%.1f, obstruction=%s, overload=%s",
+                percentOpen, moving, speed, obstruction, overload);
     }
 
     public void obstructionOn() {

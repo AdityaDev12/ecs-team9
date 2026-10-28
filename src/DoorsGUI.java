@@ -139,11 +139,36 @@ public class DoorsGUI extends Pane {
                 animateDoors(false);
                 break;
             case Codes.REVERSING:
+                // an obstruction reverses the doors
+                desiredOpen = true;
+                doorButton.setText("Opening...");
+                animateDoors(true);
+                break;
             case Codes.HELD_OPEN:
+                // blocked doors or overloaded elevator keep doors open
+                desiredOpen = true;
+                doorButton.setText("Opening...");
+                animateDoors(true);
+                break;
             case Codes.FULLY_OPEN:
+                // door controller confirms doors are open
+                desiredOpen = true;
+                setDoorPosition(true);
+                doorButton.setText("Close Doors");
+                break;
+            case Codes.FULLY_CLOSED:
+                // door controller confirms doors are closed
                 desiredOpen = false;
                 setDoorPosition(false);
                 doorButton.setText("Open Doors");
+                break;
+            case Codes.STOPPED:
+                if (animation != null) {
+                    animation.stop();
+                }
+                // choose next direction based on current position
+                desiredOpen = message.value() >= 50;
+                doorButton.setText(desiredOpen ? "Close Doors" : "Open Doors");
                 break;
             default:
                 // ignore unhandled states
@@ -209,7 +234,7 @@ public class DoorsGUI extends Pane {
 }
 
 
-
+//        // ORIGINAL CODE STARTS HERE; UNCOMMENT TO REPAIR ORIGINAL CODE
 //        //button for door
 //        doorButton = new Button("Open Doors");
 //        doorButton.setStyle(

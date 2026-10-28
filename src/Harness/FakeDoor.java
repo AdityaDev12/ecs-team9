@@ -9,8 +9,8 @@ import Protocol.Messenger;
  */
 public final class FakeDoor implements Runnable {
 
-    private volatile int percentOpen = 0;      // 0 = closed, 100 = open
-    private volatile int speed = 5;            // percent per tick
+    private volatile double percentOpen = 0.0;      // 0 = closed, 100 = open
+    private volatile double speed = 2.5;            // percent per tick
     private volatile char moving = 'X';        // O = opening, C = closing, X = stopped
     private volatile boolean obstruction = false;
     private volatile boolean overload = false;
@@ -38,8 +38,8 @@ public final class FakeDoor implements Runnable {
     }
 
     public String status() {
-        return percentOpen + "% open, moving=" + moving + ", speed=" + speed
-                + ", obstruction=" + obstruction + ", overload=" + overload;
+        return percentOpen + "%.1f%% open, moving=%c" + moving + ", speed=%.1f" + speed
+                + ", obstruction=%s" + obstruction + ", overload=%s" + overload;
     }
 
     public void obstructionOn() {
@@ -47,7 +47,7 @@ public final class FakeDoor implements Runnable {
         send(Codes.SENSOR, Codes.OBSTRUCTION_ON, 0);
         if (moving == 'C') {
             moving = 'O';                                  // doors reverse
-            send(Codes.STATE, Codes.REVERSING, percentOpen);
+            send(Codes.STATE, Codes.REVERSING, (int) Math.round(percentOpen));
         }
     }
 
@@ -60,7 +60,7 @@ public final class FakeDoor implements Runnable {
         overload = true;
         send(Codes.SENSOR, Codes.OVERLOAD_ON, 0);
         moving = 'O';                                      // overload holds doors open
-        send(Codes.STATE, Codes.HELD_OPEN, percentOpen);
+        send(Codes.STATE, Codes.HELD_OPEN, (int) Math.round(percentOpen));
     }
 
     public void overloadOff() {
@@ -79,6 +79,7 @@ public final class FakeDoor implements Runnable {
                 Thread.currentThread().interrupt();
                 return;
             }
+            moveDoors();
         }
     }
 
@@ -98,29 +99,32 @@ public final class FakeDoor implements Runnable {
     private void doCommand(byte cmd) {
         if (cmd == Codes.OPEN) {
             moving = 'O';
-            send(Codes.STATE, Codes.OPENING, percentOpen);
+            send(Codes.STATE, Codes.OPENING, (int) Math.round(percentOpen));
         } else if (cmd == Codes.CLOSE) {
             if (obstruction || overload) {
-                send(Codes.STATE, Codes.HELD_OPEN, percentOpen);   // refuse to close
+                send(Codes.STATE, Codes.HELD_OPEN, (int) Math.round(percentOpen));   // refuse to close
                 return;
             }
             moving = 'C';
-            send(Codes.STATE, Codes.CLOSING, percentOpen);
+            send(Codes.STATE, Codes.CLOSING, (int) Math.round(percentOpen));
         } else if (cmd == Codes.STOP) {
             moving = 'X';
+            send(Codes.STATE, Codes.STOPPED, (int) Math.round(percentOpen));
         }
     }
 
     private void moveDoors() {
         if (moving == 'O') {
-            percentOpen = Math.min(100, percentOpen + speed);
-            if (percentOpen == 100) {
+            percentOpen = Math.min(100.0, percentOpen + speed);
+            if (percentOpen >= 100) {
+                percentOpen = 100.0;
                 moving = 'X';
                 send(Codes.STATE, Codes.FULLY_OPEN, 100);
             }
         } else if (moving == 'C') {
-            percentOpen = Math.max(0, percentOpen - speed);
-            if (percentOpen == 0) {
+            percentOpen = Math.max(0.0, percentOpen - speed);
+            if (percentOpen <= 0.0) {
+                percentOpen = 0.0;
                 moving = 'X';
                 send(Codes.STATE, Codes.FULLY_CLOSED, 0);
             }

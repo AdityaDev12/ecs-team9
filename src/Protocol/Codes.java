@@ -29,6 +29,7 @@ public final class Codes {
     public static final byte CLOSING      = 4;
     public static final byte REVERSING    = 5;
     public static final byte HELD_OPEN    = 6;
+    public static final byte STOPPED      = 7;
 
     // Bodies for SENSOR
     public static final byte OBSTRUCTION_ON  = 1;
@@ -70,6 +71,7 @@ public final class Codes {
                 if (b == CLOSING)      return "CLOSING";
                 if (b == REVERSING)    return "REVERSING";
                 if (b == HELD_OPEN)    return "HELD_OPEN";
+                if (b == STOPPED)      return "STOPPED";
                 break;
             case SENSOR:
                 if (b == OBSTRUCTION_ON)  return "OBSTRUCTION_ON";

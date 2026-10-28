@@ -72,13 +72,13 @@ public final class FakeDoor implements Runnable {
     public void run() {
         while (running) {
             readCommands();
-            moveDoors();
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             }
+            // advance door only once per 50 ms tick
             moveDoors();
         }
     }

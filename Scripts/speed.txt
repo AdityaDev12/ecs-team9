@@ -1,0 +1,14 @@
+echo SCENARIO 4 - speed control
+echo slow
+speed 3
+open
+wait 2500
+close
+wait 2500
+echo fast
+speed 20
+open
+wait 800
+close
+wait 800
+echo SCENARIO 4 done

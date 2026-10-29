@@ -66,7 +66,7 @@ public final class NetworkMessenger implements Messenger {
 
     @Override
     public int register() {
-        return 1;   // TODO ask Michelle whether the server assigns this
+        return 1;
     }
 
     @Override

@@ -2,9 +2,8 @@ package Harness;
 
 import Protocol.Codes;
 import Protocol.Message;
-import Protocol.Messenger;
 import Simulator.DoorSimulatorMain;
-import Simulator.ServerMessenger;
+import Protocol.ServerMessenger;
 import javafx.application.Application;
 import java.io.IOException;
 

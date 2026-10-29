@@ -12,15 +12,15 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 
 /**
- * The test harness. Sends commands to the door GUI and prints every event the
- * GUI sends back. It never imports a GUI class everything goes through the Messenger.
+ * Starts the application and delegates control
  */
 public final class Main {
 
     private Messenger messenger;
-    private int id;
+    private Manager manager;
     private byte elevator = 1;
     private EventLog log;
+
     private FakeDoor fake;             // null when the real GUI is connected
     private volatile boolean running = true;
 
@@ -65,11 +65,8 @@ public final class Main {
             messenger = new LocalMessenger();
         }
 
-        id = messenger.register();
-        messenger.subscribe(id, Codes.STATE, Codes.ANY);
-        messenger.subscribe(id, Codes.SENSOR, Codes.ANY);
-        messenger.subscribe(id, Codes.SYS, Codes.ANY);
-        log.note("harness is id " + id + ", driving elevator " + elevator);
+        manager = new Manager(messenger, elevator, log);
+        log.note("Main: Harness Manager is id " + manager.getId() + ", driving elevator " + elevator);
 
         if (messenger instanceof LocalMessenger) {
             fake = new FakeDoor(messenger, elevator);
@@ -94,22 +91,16 @@ public final class Main {
         shutdown();
     }
 
-    /** Keeps checking the messenger and printing whatever the GUI reports. */
+    /** asks the Manager for messages and prints whatever the GUI reports. */
     private void listen() {
         while (running) {
-            Message m = messenger.getMsg(id, Codes.ANY, Codes.ANY);
-            if (m == null) {
+            Message message = manager.pollMessage();
+            if (message == null) {
                 sleep(20);
             } else {
-                log.received(m);
+                log.received(message);
             }
         }
-    }
-
-    private void send(byte topic, byte body, int value) {
-        Message m = new Message(topic, elevator, body, value);
-        log.sent(m);
-        messenger.publish(id, m);
     }
 
     private void typeCommands() {
@@ -157,15 +148,15 @@ public final class Main {
 
         try {
             if (cmd.equals("open")) {
-                send(Codes.CMD, Codes.OPEN, 0);
+                manager.openDoor();
             } else if (cmd.equals("close")) {
-                send(Codes.CMD, Codes.CLOSE, 0);
+                manager.closeDoor();
             } else if (cmd.equals("stop")) {
-                send(Codes.CMD, Codes.STOP, 0);
+                manager.stopDoor();
             } else if (cmd.equals("speed")) {
-                send(Codes.SPEED, Codes.SET_SPEED, Integer.parseInt(parts[1]));
+                manager.setSpeed(Integer.parseInt(parts[1]));
             } else if (cmd.equals("ping")) {
-                send(Codes.SYS, Codes.PING, 0);
+                manager.ping();
             } else if (cmd.equals("press") || cmd.equals("release")) {
                 sensor(parts[1], cmd.equals("press"));
             } else if (cmd.equals("status")) {

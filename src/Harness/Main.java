@@ -11,9 +11,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-/**
- * Starts the application and delegates control
- */
 public final class Main {
 
     private Messenger messenger;
@@ -21,7 +18,7 @@ public final class Main {
     private byte elevator = 1;
     private EventLog log;
 
-    private FakeDoor fake;             // null when the real GUI is connected
+    private FakeDoor fake;
     private volatile boolean running = true;
 
     public static void main(String[] args) {
@@ -148,14 +145,19 @@ public final class Main {
 
         try {
             if (cmd.equals("open")) {
+                logSend(Codes.CMD, Codes.OPEN, 0);
                 manager.openDoor();
             } else if (cmd.equals("close")) {
+                logSend(Codes.CMD, Codes.CLOSE, 0);
                 manager.closeDoor();
             } else if (cmd.equals("stop")) {
+                logSend(Codes.CMD, Codes.STOP, 0);
                 manager.stopDoor();
             } else if (cmd.equals("speed")) {
+                logSend(Codes.SPEED, Codes.SET_SPEED, Integer.parseInt(parts[1]));
                 manager.setSpeed(Integer.parseInt(parts[1]));
             } else if (cmd.equals("ping")) {
+                logSend(Codes.SYS, Codes.PING, 0);
                 manager.ping();
             } else if (cmd.equals("press") || cmd.equals("release")) {
                 sensor(parts[1], cmd.equals("press"));
@@ -178,26 +180,46 @@ public final class Main {
             log.error("missing argument for '" + cmd + "'");
         } catch (NumberFormatException e) {
             log.error("that should be a number");
+        } catch (IllegalStateException e) {
+            // GUI went away mid-run; report it and keep the harness alive
+            log.error(e.getMessage());
         }
         return true;
     }
 
     /**
-     * Obstruction and overload are buttons a person clicks in the GUI. The
-     * harness can only fake them against FakeDoor.
+     * Obstruction and overload are buttons a person clicks in the GUI.
+     * publish a SENSOR message and the GUI presses the button for us.
      */
     private void sensor(String which, boolean on) {
-        if (fake == null) {
-            log.error("press/release only works with FakeDoor - click the real button");
+        boolean obstruction = which.equalsIgnoreCase("obstruction");
+        boolean overload = which.equalsIgnoreCase("overload");
+        if (!obstruction && !overload) {
+            log.error("unknown sensor: " + which + " (obstruction or overload)");
             return;
         }
-        if (which.equalsIgnoreCase("obstruction")) {
-            if (on) fake.obstructionOn(); else fake.obstructionOff();
-        } else if (which.equalsIgnoreCase("overload")) {
-            if (on) fake.overloadOn(); else fake.overloadOff();
-        } else {
-            log.error("unknown sensor: " + which + " (obstruction or overload)");
+        if (fake != null) {
+            if (obstruction) {
+                if (on) fake.obstructionOn(); else fake.obstructionOff();
+            } else {
+                if (on) fake.overloadOn(); else fake.overloadOff();
+            }
+            return;
         }
+        if (obstruction) {
+            logSend(Codes.SENSOR, on ? Codes.OBSTRUCTION_ON : Codes.OBSTRUCTION_OFF, 0);
+            manager.setObstruction(on);
+        } else {
+            logSend(Codes.SENSOR, on ? Codes.OVERLOAD_ON : Codes.OVERLOAD_OFF, 0);
+            manager.setOverload(on);
+        }
+    }
+
+    /**
+     *  Logs what we are about to ask the Manager to send.
+     */
+    private void logSend(byte topic, byte body, int value) {
+        log.sent(new Message(topic, elevator, body, value));
     }
 
     private void shutdown() {

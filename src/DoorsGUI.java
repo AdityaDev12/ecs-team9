@@ -2,7 +2,6 @@ import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
-import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.layout.Pane;
@@ -10,10 +9,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
-
-import Protocol.Codes;
-import Protocol.Message;
-import Protocol.Messenger;
 
 public class DoorsGUI extends Pane {
 
@@ -33,26 +28,13 @@ public class DoorsGUI extends Pane {
     private final Rectangle leftDoor;
     private final Rectangle rightDoor;
 
-    private final Messenger messenger;
-    private final int id;
-    private final byte elevator;
-
     //door animations
     private Timeline animation;
-    private volatile boolean listening = true;
 
-    // desired state can change before door finishes moving
-    private boolean desiredOpen = false;
     //tracks if door is open
     private boolean isOpen = false;
 
-    public DoorsGUI(Messenger messenger, byte elevator) {
-        // register GUI in messaging
-        this.messenger = messenger;
-        this.elevator = elevator;
-        id = messenger.register();
-        messenger.subscribe(id, Codes.STATE, elevator);
-
+    public DoorsGUI() {
         setPrefSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         setMinSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         setMaxSize(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -89,92 +71,35 @@ public class DoorsGUI extends Pane {
                         "-fx-background-radius: 5px;"
         );
 
-        // REVISION STARTS HERE; DELETE ALL TO REPAIR ORIGINAL CODE
-        // button for door
-        doorButton.setOnAction(event -> requestDoorMovement());
-        getChildren().addAll(doorPane, doorButton);
-        StackPane.setAlignment(doorButton, Pos.BOTTOM_CENTER);
-        StackPane.setMargin(doorButton, new javafx.geometry.Insets(0, 0, 20, 0));
-
-        // read incoming messages off JavaFX thread
-        Thread listener = new Thread(this::listenForStates, "doors-gui-listener");
-        listener.setDaemon(true);
-        listener.start();
-    }
-
-    private void requestDoorMovement() {
-        boolean open = !desiredOpen;
-        desiredOpen = open;
-        byte command = open? Codes.OPEN : Codes.CLOSE;
-        messenger.publish(id, new Message(Codes.CMD, elevator, command, 0));
-    }
-
-    private void listenForStates() {
-        while (listening) {
-            Message message = messenger.getMsg(id, Codes.STATE, elevator);
-            if (message == null) {
-                try {
-                    Thread.sleep(20);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                continue;
+        //open/close doors
+        doorButton.setOnAction(_ -> {
+            if (isOpen) {
+                closeDoor();
             }
-            // JavaFX scene change runs on JavaFX thread
-            Platform.runLater(() -> handleState(message));
-        }
+
+            else {
+                openDoor();
+            }
+        });
+
+        getChildren().addAll(doorPane, doorButton);
+
+        StackPane.setAlignment(doorButton, Pos.BOTTOM_CENTER);
+
+        StackPane.setMargin(doorButton, new javafx.geometry.Insets(0, 0, 20, 0));
     }
 
-    private void handleState(Message message) {
-        switch (message.body()) {
-            case Codes.OPENING:
-                desiredOpen = true;
-                doorButton.setText("Opening...");
-                animateDoors(true);
-                break;
-            case Codes.CLOSING:
-                desiredOpen = false;
-                doorButton.setText("Closing...");
-                animateDoors(false);
-                break;
-            case Codes.REVERSING:
-                // an obstruction reverses the doors
-                desiredOpen = true;
-                doorButton.setText("Opening...");
-                animateDoors(true);
-                break;
-            case Codes.HELD_OPEN:
-                // blocked doors or overloaded elevator keep doors open
-                desiredOpen = true;
-                doorButton.setText("Opening...");
-                animateDoors(true);
-                break;
-            case Codes.FULLY_OPEN:
-                // door controller confirms doors are open
-                desiredOpen = true;
-                setDoorPosition(true);
-                doorButton.setText("Close Doors");
-                break;
-            case Codes.FULLY_CLOSED:
-                // door controller confirms doors are closed
-                desiredOpen = false;
-                setDoorPosition(false);
-                doorButton.setText("Open Doors");
-                break;
-            case Codes.STOPPED:
-                if (animation != null) {
-                    animation.stop();
-                }
-                // choose next direction based on current position
-                desiredOpen = message.value() >= 50;
-                doorButton.setText(desiredOpen ? "Close Doors" : "Open Doors");
-                break;
-            default:
-                // ignore unhandled states
-                break;
-        }
+    //open the doors
+    public void openDoor() {
+        animateDoors(true);
     }
+
+    //close the doors
+    public void closeDoor() {
+        animateDoors(false);
+    }
+
+    //animate the doors
     private void animateDoors(boolean open) {
 
         //stop an existing animation before starting another
@@ -208,108 +133,11 @@ public class DoorsGUI extends Pane {
         );
 
         //update the state and button after the animation finishes
-        animation.setOnFinished(event -> {
+        animation.setOnFinished(_ -> {
             isOpen = open;
             doorButton.setText(isOpen ? "Close Doors" : "Open Doors");
         });
 
         animation.play();
     }
-
-    private void setDoorPosition(boolean open) {
-        if (animation != null) {
-            animation.stop();
-        }
-        leftDoor.setTranslateX(open ? -DOOR_WIDTH : 0);
-        rightDoor.setTranslateX(open ? DOOR_WIDTH : 0);
-        isOpen = open;
-    }
-
-    public void close() {
-        listening = false;
-        if (animation != null) {
-            animation.stop();
-        }
-    }
 }
-
-
-//        // ORIGINAL CODE STARTS HERE; UNCOMMENT TO REPAIR ORIGINAL CODE
-//        //button for door
-//        doorButton = new Button("Open Doors");
-//        doorButton.setStyle(
-//                "-fx-font-size: 16px;" +
-//                "-fx-padding: 10px 20px;" +
-//                "-fx-background-radius: 5px;"
-//        );
-//
-//        //open/close doors
-//        doorButton.setOnAction(event -> {
-//            if (isOpen) {
-//                closeDoor();
-//            }
-//
-//            else {
-//                openDoor();
-//            }
-//        });
-//
-//        getChildren().addAll(doorPane, doorButton);
-//
-//        StackPane.setAlignment(doorButton, Pos.BOTTOM_CENTER);
-//
-//        StackPane.setMargin(doorButton, new javafx.geometry.Insets(0, 0, 20, 0));
-//    }
-//
-//    //open the doors
-//    public void openDoor() {
-//        animateDoors(true);
-//    }
-//
-//    //close the doors
-//    public void closeDoor() {
-//        animateDoors(false);
-//    }
-//
-//    //animate the doors
-//    private void animateDoors(boolean open) {
-//
-//        //stop an existing animation before starting another
-//        if (animation != null) {
-//            animation.stop();
-//        }
-//
-//        double distance = DOOR_WIDTH;
-//
-//        //determine each panel's target position
-//        double leftTarget = open ? -distance : 0;
-//        double rightTarget = open ? distance : 0;
-//
-//        //animate both panels together
-//        animation = new Timeline(
-//                new KeyFrame(
-//                        Duration.seconds(ANIMATION_SECONDS),
-//
-//                        new KeyValue(
-//                                leftDoor.translateXProperty(),
-//                                leftTarget,
-//                                Interpolator.EASE_BOTH
-//                        ),
-//
-//                        new KeyValue(
-//                                rightDoor.translateXProperty(),
-//                                rightTarget,
-//                                Interpolator.EASE_BOTH
-//                        )
-//                )
-//        );
-//
-//        //update the state and button after the animation finishes
-//        animation.setOnFinished(event -> {
-//            isOpen = open;
-//            doorButton.setText(isOpen ? "Close Doors" : "Open Doors");
-//        });
-//
-//        animation.play();
-//    }
-//}

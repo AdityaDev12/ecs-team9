@@ -34,6 +34,7 @@ public class DoorSimulatorMain extends Application {
         System.out.println("Starting Door GUI (elevator " + elevator + ")...");
         DoorGUIMain gui = new DoorGUIMain(stage);
         gui.addListener(DoorEventListener.console());
+        gui.attachDoorPanels(new DoorsGUI());
         gui.makeGUI();
 
         Messenger messenger;

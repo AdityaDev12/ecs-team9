@@ -69,7 +69,7 @@ public class DoorGUIMain {
         Rectangle doorway = rect(OPENING_LEFT_COL, OPENING_TOP_ROW, DOOR_WIDTH_CELLS, DOOR_HEIGHT_CELLS, DARK);
         Line floor = line(x(1), y(OPENING_BOTTOM_ROW), x(COLS - 1), y(OPENING_BOTTOM_ROW), DARK, 3);
 
-        doorLayer.getChildren().add(panels.getNode());
+        doorLayer.getChildren().setAll(panels.getNode());
 
         // fully open / fully closed markers
         openLeft = marker(LEFT_POCKET_COL);

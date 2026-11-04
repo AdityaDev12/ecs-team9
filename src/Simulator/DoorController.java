@@ -104,12 +104,6 @@ public class DoorController {
 //    public void halt()  { doCommand(Codes.STOP); }
 
 
-    //ORIGINAL
-//    public void setSpeed(int percentPerTick) {
-//        speed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, percentPerTick));
-//        updateStatus();
-//    }
-
     // ADDED
     private void requestCommand(byte command) {
         if (messenger instanceof LocalMessenger) {
@@ -118,14 +112,7 @@ public class DoorController {
             send(Codes.CMD, command, 0);
         }
     }
-    public void setSpeed(int percentPerTick) {
-        int requestedSpeed = clampSpeed(percentPerTick);
-        if (messenger instanceof LocalMessenger) {
-            applySpeed(requestedSpeed);
-        } else {
-            send(Codes.SPEED, Codes.SET_SPEED, requestedSpeed);
-        }
-    }
+
     private void requestObstruction(boolean active) {
         if (messenger instanceof LocalMessenger) {
             applyObstruction(active);

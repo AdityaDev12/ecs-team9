@@ -42,7 +42,6 @@ public class DoorSimulatorMain extends Application {
         System.out.println("DoorSimMain: Starting Door GUI (elevator " + elevator + ")...");
         DoorGUIMain gui = new DoorGUIMain(stage);
         gui.addListener(DoorEventListener.console());
-        gui.attachDoorPanels(new DoorsGUI());
         gui.makeGUI();
 
         Messenger messenger;
@@ -80,8 +79,6 @@ public class DoorSimulatorMain extends Application {
                 case O -> controller.open();
                 case C -> controller.close();
                 case S -> controller.halt();
-                case EQUALS, PLUS, ADD -> controller.setSpeed(controller.getSpeed() + 1);
-                case MINUS, SUBTRACT -> controller.setSpeed(controller.getSpeed() - 1);
                 default -> { }
             }
         });

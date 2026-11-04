@@ -124,4 +124,8 @@ public final class ServerMessenger implements Messenger {
         } catch (IOException ignored) {
         }
     }
+
+    public boolean isConnected() {
+        return out != null;
+    }
 }

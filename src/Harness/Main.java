@@ -20,6 +20,7 @@ public final class Main {
         int port = 5001;
         byte elevator = 1;
         boolean hex = true;
+        String script = null;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -37,6 +38,13 @@ public final class Main {
                     }
                     elevator = (byte) Integer.parseInt(args[++i]);
                 }
+                case "--script" -> {
+                    if (i + 1 >= args.length) {
+                        System.err.println("Main: Missing script filename.");
+                        return;
+                    }
+                    script = args[++i];
+                }
                 case "--no-hex" -> hex = false;
                 default -> {
                     System.err.println("Main: Unknown option: " + args[i]);
@@ -45,264 +53,28 @@ public final class Main {
                 }
             }
         }
+        if (port < 1 || port > 65535) {
+            System.err.println("Main: Port must be between 1 and 65535.");
+            return;
+        }
         if (elevator < 1 || elevator > 4) {
             System.err.println("Main: Elevator must be between 1 and 4.");
             return;
         }
         EventLog log = new EventLog(hex);
         log.note("Main: Starting the Elevator Control System test harness.");
-        Manager manager = new Manager (port, elevator, log);
+        if (script != null) {
+            log.note("Main: Demo script: " + script);
+        }
+        Manager manager = new Manager (port, elevator, log, script);
         manager.start();
     }
 
     private static void printUsage() {
-        System.out.println("Main: Usage: java Harness.Main [--port PORT] " + "[--elevator 1-4] [--no-hex]");
+        System.out.println("Usage: java Harness.Main "
+                + "[--port PORT] "
+                + "[--elevator 1-4] "
+                + "[--script FILE] "
+                + "[--no-hex]");
     }
 }
-
-
-
-// ORIGINAL CODE
-//
-//    private Messenger messenger;
-//    private Manager manager;
-//    private byte elevator = 1;
-//    private EventLog log;
-//
-//    private FakeDoor fake;
-//    private volatile boolean running = true;
-//
-//    public static void main(String[] args) {
-//        new Main().start(args);
-//    }
-//
-//    private void start(String[] args) {
-//        String host = null;
-//        int port = 0;
-//        String script = null;
-//        boolean hex = true;
-//
-//        for (int i = 0; i < args.length; i++) {
-//            if (args[i].equals("--net")) {
-//                host = args[++i];
-//                port = Integer.parseInt(args[++i]);
-//            } else if (args[i].equals("--script")) {
-//                script = args[++i];
-//            } else if (args[i].equals("--elevator")) {
-//                elevator = (byte) Integer.parseInt(args[++i]);
-//            } else if (args[i].equals("--no-hex")) {
-//                hex = false;
-//            } else {
-//                System.err.println("unknown option: " + args[i]);
-//                return;
-//            }
-//        }
-//
-//        log = new EventLog(hex);
-//
-//        if (host != null) {
-//            try {
-//                messenger = new NetworkMessenger(host, port);
-//                log.note("connected to " + host + ":" + port);
-//            } catch (IOException e) {
-//                log.error("could not connect: " + e.getMessage());
-//                log.error("using FakeDoor instead so the harness still runs");
-//                messenger = new LocalMessenger();
-//            }
-//        } else {
-//            messenger = new LocalMessenger();
-//        }
-//
-//        manager = new Manager(messenger, elevator, log);
-//        log.note("Main: Harness Manager is id " + manager.getId() + ", driving elevator " + elevator);
-//
-//        if (messenger instanceof LocalMessenger) {
-//            fake = new FakeDoor(messenger, elevator);
-//            Thread t = new Thread(fake, "fake-door");
-//            t.setDaemon(true);
-//            t.start();
-//            log.note("FakeDoor started as id " + fake.id());
-//        }
-//
-//        Thread listener = new Thread(this::listen, "listener");
-//        listener.setDaemon(true);
-//        listener.start();
-//
-//        if (script != null) {
-//            runScript(script);
-//            sleep(500);                 // let the last events arrive
-//            log.note("done");
-//        } else {
-//            log.note("type 'help' for commands");
-//            typeCommands();
-//        }
-//        shutdown();
-//    }
-//
-//    /** asks the Manager for messages and prints whatever the GUI reports. */
-//    private void listen() {
-//        while (running) {
-//            Message message = manager.pollMessage();
-//            if (message == null) {
-//                sleep(20);
-//            } else {
-//                log.received(message);
-//            }
-//        }
-//    }
-//
-//    private void typeCommands() {
-//        BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-//        try {
-//            String line;
-//            while (running && (line = in.readLine()) != null) {
-//                if (!run(line.trim())) {
-//                    return;
-//                }
-//            }
-//        } catch (IOException e) {
-//            log.error("console closed: " + e.getMessage());
-//        }
-//    }
-//
-//    /** Runs the commands in a file, one per line. Ignores blanks and # comments. */
-//    private boolean runScript(String path) {
-//        log.note("running script: " + path);
-//        try (BufferedReader r = new BufferedReader(new FileReader(path))) {
-//            String line;
-//            while ((line = r.readLine()) != null) {
-//                String s = line.trim();
-//                if (s.isEmpty() || s.startsWith("#")) {
-//                    continue;
-//                }
-//                if (!run(s)) {
-//                    return false;
-//                }
-//            }
-//        } catch (IOException e) {
-//            log.error("cannot read " + path + ": " + e.getMessage());
-//        }
-//        log.note("script finished: " + path);
-//        return true;
-//    }
-//
-//    /** Does one command. Returns false if it was 'quit'. */
-//    private boolean run(String line) {
-//        if (line.isEmpty()) {
-//            return true;
-//        }
-//        String[] parts = line.split("\\s+");
-//        String cmd = parts[0].toLowerCase();
-//
-//        try {
-//            if (cmd.equals("open")) {
-//                logSend(Codes.CMD, Codes.OPEN, 0);
-//                manager.openDoor();
-//            } else if (cmd.equals("close")) {
-//                logSend(Codes.CMD, Codes.CLOSE, 0);
-//                manager.closeDoor();
-//            } else if (cmd.equals("stop")) {
-//                logSend(Codes.CMD, Codes.STOP, 0);
-//                manager.stopDoor();
-//            } else if (cmd.equals("speed")) {
-//                logSend(Codes.SPEED, Codes.SET_SPEED, Integer.parseInt(parts[1]));
-//                manager.setSpeed(Integer.parseInt(parts[1]));
-//            } else if (cmd.equals("ping")) {
-//                logSend(Codes.SYS, Codes.PING, 0);
-//                manager.ping();
-//            } else if (cmd.equals("press") || cmd.equals("release")) {
-//                sensor(parts[1], cmd.equals("press"));
-//            } else if (cmd.equals("status")) {
-//                log.note(fake != null ? fake.status() : "real GUI - look at the window");
-//            } else if (cmd.equals("wait")) {
-//                sleep(Long.parseLong(parts[1]));
-//            } else if (cmd.equals("echo")) {
-//                log.note(line.substring(4).trim());
-//            } else if (cmd.equals("run")) {
-//                return runScript(parts[1]);
-//            } else if (cmd.equals("help")) {
-//                help();
-//            } else if (cmd.equals("quit") || cmd.equals("exit")) {
-//                return false;
-//            } else {
-//                log.error("unknown command: " + cmd + " (try 'help')");
-//            }
-//        } catch (ArrayIndexOutOfBoundsException e) {
-//            log.error("missing argument for '" + cmd + "'");
-//        } catch (NumberFormatException e) {
-//            log.error("that should be a number");
-//        } catch (IllegalStateException e) {
-//            // GUI went away mid-run; report it and keep the harness alive
-//            log.error(e.getMessage());
-//        }
-//        return true;
-//    }
-//
-//    /**
-//     * Obstruction and overload are buttons a person clicks in the GUI.
-//     * publish a SENSOR message and the GUI presses the button for us.
-//     */
-//    private void sensor(String which, boolean on) {
-//        boolean obstruction = which.equalsIgnoreCase("obstruction");
-//        boolean overload = which.equalsIgnoreCase("overload");
-//        if (!obstruction && !overload) {
-//            log.error("unknown sensor: " + which + " (obstruction or overload)");
-//            return;
-//        }
-//        if (fake != null) {
-//            if (obstruction) {
-//                if (on) fake.obstructionOn(); else fake.obstructionOff();
-//            } else {
-//                if (on) fake.overloadOn(); else fake.overloadOff();
-//            }
-//            return;
-//        }
-//        if (obstruction) {
-//            logSend(Codes.SENSOR, on ? Codes.OBSTRUCTION_ON : Codes.OBSTRUCTION_OFF, 0);
-//            manager.setObstruction(on);
-//        } else {
-//            logSend(Codes.SENSOR, on ? Codes.OVERLOAD_ON : Codes.OVERLOAD_OFF, 0);
-//            manager.setOverload(on);
-//        }
-//    }
-//
-//    /**
-//     *  Logs what we are about to ask the Manager to send.
-//     */
-//    private void logSend(byte topic, byte body, int value) {
-//        log.sent(new Message(topic, elevator, body, value));
-//    }
-//
-//    private void shutdown() {
-//        running = false;
-//        if (fake != null) {
-//            fake.stop();
-//        }
-//        if (messenger instanceof NetworkMessenger) {
-//            ((NetworkMessenger) messenger).close();
-//        }
-//    }
-//
-//    private static void sleep(long ms) {
-//        try {
-//            Thread.sleep(ms);
-//        } catch (InterruptedException e) {
-//            Thread.currentThread().interrupt();
-//        }
-//    }
-//
-//    private static void help() {
-//        System.out.println("  open / close / stop     move the doors");
-//        System.out.println("  speed <n>               set door speed");
-//        System.out.println("  press obstruction       fake the obstruction button");
-//        System.out.println("  press overload          fake the overload button");
-//        System.out.println("  release obstruction     clear it");
-//        System.out.println("  release overload        clear it");
-//        System.out.println("  ping                    check the GUI is alive");
-//        System.out.println("  status                  show FakeDoor's state");
-//        System.out.println("  wait <ms>               pause (for scripts)");
-//        System.out.println("  echo <text>             print a label");
-//        System.out.println("  run <file>              replay a script");
-//        System.out.println("  quit                    exit");
-//    }
-//}

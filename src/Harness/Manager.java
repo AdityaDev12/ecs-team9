@@ -27,8 +27,10 @@ public class Manager {
     private UUID managerId;
     private DoorController controller;
     private Timeline busPoller; // checks SoftwareBus for incoming messages
+    private volatile boolean overload = false; // local record of sensor condition
+    private volatile boolean obstruction = false; // local record of sensor condition
 
-    // uncomment this constructor when testing on router
+//    // uncomment this constructor when testing on router
 //    public Manager(String routerIp, int routerPort, int elevator) {
 //
 //        this.bus = new SoftwareBus(routerIp, routerPort);
@@ -70,8 +72,7 @@ public class Manager {
             // create DoorController
             // sensor clicks (overload / obstruction) are published on the bus
             controller = new DoorController(
-                    gui, elevator, this::publishDoorStatus,
-                    condition -> publishMessage(DoorProtocol.DOOR_CONDITION, condition)
+                    gui, elevator, this::publishDoorStatus, this::handleSensorCondition
             );
             controller.start();
             // start checking for incoming bus messages
@@ -134,21 +135,38 @@ public class Manager {
         System.out.println("[DoorManager] Published: " + message);
     }
 
+    // records the sensor condition locally and publishes it to the SoftwareBus.
+    private void handleSensorCondition(int condition) {
+        switch (condition) {
+            case DoorProtocol.OVERLOAD_ACTIVE ->
+                    overload = true;
+            case DoorProtocol.OVERLOAD_CLEAR ->
+                    overload = false;
+            case DoorProtocol.OBSTRUCTION_ACTIVE ->
+                    obstruction = true;
+            case DoorProtocol.OBSTRUCTION_CLEAR ->
+                    obstruction = false;
+            default -> {
+                System.err.println("[DoorManager] Unknown sensor condition: " + condition);
+                return;
+            }
+        }
+        // publish condition for other subsystems
+        publishMessage(DoorProtocol.DOOR_CONDITION, condition);
+    }
+
     // console for manually testing the Door subsystem.
     private void runTestConsole() {
         Scanner scanner = new Scanner(System.in);
         System.out.println("""
-
+                
                 DOOR MANAGER TEST CONSOLE:
                 open              - Open door
                 close             - Close door
                 stop              - Stop door
-                overload          - Activate overload
-                clearoverload     - Clear overload
-                obstruction       - Activate obstruction
-                clearobstruction  - Clear obstruction
+                getoverload       - Check overload status
+                getobstruction    - Check obstruction status
                 quit              - Stop test console
-
                 """);
 
         while (true) {
@@ -167,22 +185,10 @@ public class Manager {
                         publishMessage(
                                 DoorProtocol.DOOR_COMMAND,
                                 DoorProtocol.STOP);
-                case "overload" ->
-                        publishMessage(
-                                DoorProtocol.DOOR_CONDITION,
-                                DoorProtocol.OVERLOAD_ACTIVE);
-                case "clearoverload" ->
-                        publishMessage(
-                                DoorProtocol.DOOR_CONDITION,
-                                DoorProtocol.OVERLOAD_CLEAR);
-                case "obstruction" ->
-                        publishMessage(
-                                DoorProtocol.DOOR_CONDITION,
-                                DoorProtocol.OBSTRUCTION_ACTIVE);
-                case "clearobstruction" ->
-                        publishMessage(
-                                DoorProtocol.DOOR_CONDITION,
-                                DoorProtocol.OBSTRUCTION_CLEAR);
+                case "getoverload" ->
+                    System.out.println("[DoorManager] Overload: " + overload);
+                case "getobstruction" ->
+                        System.out.println("[DoorManager] Obstruction: " + obstruction);
                 case "quit" -> {
                     System.out.println(
                             "[DoorManager] Test console closed.");

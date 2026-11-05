@@ -20,7 +20,13 @@ public class Manager {
         this.elevator = elevator;
     }
 
-    // Used later when the E-board provides a shared bus.
+    // UNCOMMENT THIS CONSTRUCTOR TO RUN MAIN WITHOUT SOFTWAREBUS ROUTER
+//    public Manager(String routerIp, int routerPort, int elevator) {
+//        this.bus = new SoftwareBus();
+//        this.elevator = elevator;
+//    }
+
+    // used later when elevator board provides shared bus.
     public Manager(SoftwareBus sharedBus, int elevator) {
         this.bus = sharedBus;
         this.elevator = elevator;

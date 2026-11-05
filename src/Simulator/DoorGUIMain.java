@@ -1,6 +1,8 @@
 package Simulator;
 
-import Archive.PlaceholderPanels;
+import Archive.DoorEventListener;
+import Archive.DoorPanels;
+import Archive.DoorSensor;
 import javafx.application.Platform;
 import javafx.scene.Cursor;
 import javafx.scene.Group;
@@ -209,5 +211,13 @@ public class DoorGUIMain {
     private static void fx(Runnable r) {
         if (Platform.isFxApplicationThread()) r.run();
         else Platform.runLater(r);
+    }
+
+    /** Replaces the placeholder panels with real ones. */
+    public void attachDoorPanels(DoorPanels newPanels) {
+        fx(() -> {
+            panels = newPanels;
+            doorLayer.getChildren().setAll(panels.getNode());
+        });
     }
 }

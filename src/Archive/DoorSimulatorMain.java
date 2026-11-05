@@ -1,6 +1,5 @@
 package Archive;
 
-import Simulator.DoorEventListener;
 import Simulator.DoorGUIMain;
 import Simulator.DoorsGUI;
 import javafx.application.Application;

@@ -1,6 +1,4 @@
-package Harness;
-
-import SoftwareBus.Router;
+package SoftwareBus;
 
 public class RouterLauncher {
     public static void main(String[] args) {

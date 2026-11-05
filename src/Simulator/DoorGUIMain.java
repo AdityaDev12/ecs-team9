@@ -43,7 +43,7 @@ public class DoorGUIMain {
     private final Map<DoorSensor, Boolean> state = new EnumMap<>(DoorSensor.class);
     private final List<DoorEventListener> listeners = new ArrayList<>();
 
-    private DoorPanels panels = new PlaceholderPanels();
+    private DoorPanels panels = new DoorsGUI();
     private Polygon openLeft, closed, openRight;
     private Circle obstruction;
     private Rectangle overload;
@@ -137,14 +137,6 @@ public class DoorGUIMain {
             change(DoorSensor.FULLY_CLOSED, open <= 0.001, false);
             change(DoorSensor.FULLY_OPEN_LEFT, open >= 0.999, false);
             change(DoorSensor.FULLY_OPEN_RIGHT, open >= 0.999, false);
-        });
-    }
-
-    /** Replaces the placeholder panels with real ones. */
-    public void attachDoorPanels(DoorPanels newPanels) {
-        fx(() -> {
-            panels = newPanels;
-            doorLayer.getChildren().setAll(panels.getNode());
         });
     }
 

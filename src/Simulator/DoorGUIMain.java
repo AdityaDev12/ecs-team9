@@ -98,9 +98,7 @@ public class DoorGUIMain {
         overloadText.setMouseTransparent(true);
         clickable(overload, DoorSensor.OVERLOAD);
 
-        // labels and status
-        //Text help = text("O open   C close   S stop   +/- speed   G grid", 1, ROWS - 1, 12);
-        //help.setFill(Color.GRAY);
+        // status
         status = text("", 1, ROWS - 2.2, 14);
 
         root.getChildren().addAll(grid, wall, doorway, floor, doorLayer,

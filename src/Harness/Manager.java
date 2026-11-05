@@ -1,262 +1,109 @@
 package Harness;
 
-import Protocol.Codes;
-import Protocol.Message;
+import SoftwareBus.SoftwareBus;
+import SoftwareBus.Message;
+import Protocol.DoorProtocol;
 import Simulator.DoorSimulatorMain;
-import Protocol.ServerMessenger;
+
 import javafx.application.Application;
-import java.io.IOException;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
-/**
- * coordinates commands from the test harness with the elevator door system.
- * doesn't implement door movement or safety rules
- */
+import java.util.Scanner;
+import java.util.UUID;
+
 public class Manager {
-    private final int port;
-    private final byte elevator;
-    private final EventLog log;
-    private final String scriptPath;
-    private ServerMessenger messenger;
-    private int id;
-    private volatile boolean running = false;
+    private final SoftwareBus bus;
+    private final int elevator;
+    private UUID managerId;
 
-    public Manager(int port, byte elevator, EventLog log, String scriptPath) {
-        this.port = port;
+    public Manager(String routerIp, int routerPort, int elevator) {
+        this.bus = new SoftwareBus(routerIp, routerPort);
         this.elevator = elevator;
-        this.log = log;
-        this.scriptPath = scriptPath;
     }
 
-    // starts server and log listener, then launches GUI
+    // Used later when the E-board provides a shared bus.
+    public Manager(SoftwareBus sharedBus, int elevator) {
+        this.bus = sharedBus;
+        this.elevator = elevator;
+    }
+
     public void start() {
-        try {
-            messenger = new ServerMessenger(port);
-        } catch (IOException e) {
-            log.error("Manager: Could not open server port " + port + ": " + e.getMessage());
-            return;
-        }
-        id = messenger.register();
-        subscribeToMessages();
-        running = true;
-
-        Thread listener = new Thread(this::listen, "manager-listener");
-        listener.setDaemon(true);
-        listener.start();
-
-        // start script separately
-        if (scriptPath != null) {
-            Thread scriptThread = new Thread(this::waitForGuiAndRunScript, "demo-script");
-            scriptThread.setDaemon(true);
-            scriptThread.start();
-        }
-
-        log.note("Manager: Started on port " + port);
-        log.note("Manager: id " + id + ", elevator " + elevator);
-        log.note("Manager: Launching Door GUI...");
-
-        try {
-            // javafx runs on its own app thread
-            Application.launch(DoorSimulatorMain.class,
-                    new String[] {
-                            "--host", "127.0.0.1",
-                            "--port", Integer.toString(port),
-                            "--elevator", Byte.toString(elevator)
-                    });
-        } catch (IllegalStateException e) {
-            log.error("Manager: Could not launch JavaFX: " + e.getMessage());
-        } finally {
-            shutdown();
-        }
+        // register Manager as SoftwareBus client.
+        managerId = bus.register();
+        System.out.println("[DoorManager] Manager connected to Software Bus.");
+        System.out.println("[DoorManager] Managing Elevator " + elevator);
+        // start testing console
+        Thread testThread = new Thread(this::runTestConsole);
+        testThread.setDaemon(true);
+        testThread.start();
+        // configure and launch Door GUI
+        DoorSimulatorMain.configure(bus, elevator);
+        Application.launch(DoorSimulatorMain.class);
     }
 
-    private void subscribeToMessages() {
-        // requests coming from the gui
-        messenger.subscribe(id, Codes.CMD, elevator);
-        messenger.subscribe(id, Codes.SPEED, elevator);
-        messenger.subscribe(id, Codes.SENSOR, elevator);
-        // reports coming from the gui
-        messenger.subscribe(id, Codes.STATE, elevator);
-        // system requests and responses
-        messenger.subscribe(id, Codes.SYS, Codes.ANY);
+    // publishes message through the SoftwareBus
+    public void publishMessage(int topic, int body) {
+        Message message = new Message(topic, elevator, body);
+        bus.publish(managerId, message);
+        System.out.println("Published: " + message);
     }
 
-    private void listen() {
-        while (running) {
-            Message message = messenger.getMsg(id, Codes.ANY, Codes.ANY);
-            if (message == null) {
-                try {
-                    Thread.sleep(20);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-                continue;
-            }
-            // log every message from the GUI
-            log.received(message);
-            // relay requests that the GUI should execute
-            if (shouldRelay(message)) {
-                log.sent(message);
-                messenger.publish(id, message);
-            }
-        }
-    }
+    // temporary console for manually testing Door subsystem
+    private void runTestConsole() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("""
 
-    private boolean shouldRelay(Message message) {
-        if (message.sub() != elevator && !(message.topic() == Codes.SYS && message.sub() == Codes.ANY)) {
-            return false;
-        }
-        if (message.topic() == Codes.CMD || message.topic() == Codes.SPEED || message.topic() == Codes.SENSOR) {
-            return true;
-        }
-        // relay a ping
-        return message.topic() == Codes.SYS && message.body() == Codes.PING;
-    }
+                DOOR MANAGER TEST CONSOLE:
 
-    // script startup
-    private void waitForGuiAndRunScript() {
-        log.note("Manager: Waiting for GUI to connect before running " + scriptPath);
-        long deadline = System.currentTimeMillis() + 30_000;
-        while (running && !messenger.isConnected() && System.currentTimeMillis() < deadline) {
-            sleep(100);
-        }
-        if (!running) {
-            return;
-        }
-        if (!messenger.isConnected()) {
-            log.error("Manager: GUI did not connect; script was not started.");
-            return;
-        }
-        log.note("Manager: GUI connected. Starting demo script.");
-        runScript(scriptPath);
-        if (running) {
-            log.note("Demo script finished.");
-        }
-    }
+                open              - Open door
+                close             - Close door
+                stop              - Stop door
+                overload          - Activate overload
+                clearoverload     - Clear overload
+                obstruction       - Activate obstruction
+                clearobstruction  - Clear obstruction
+                quit              - Stop test console
 
-    // script file reader
-    private void runScript(String filename) {
-        Path path = Path.of(filename);
-        log.note("Running script: " + path);
-        try (BufferedReader reader = Files.newBufferedReader(path)) {
-            String line;
-            while (running && (line = reader.readLine()) != null) {
-                String commandLine = line.trim();
-                if (commandLine.isEmpty() || commandLine.startsWith("#")) {
-                    continue;
-                }
-                runCommand(commandLine, path.getParent());
-            }
-        } catch (IOException e) {
-            log.error("Manager: Cannot read script " + path + ": " + e.getMessage());
-        }
-    }
+                """);
 
-    private void runCommand(String line, Path scriptDirectory) {
-        String[] parts = line.split("\\s+");
-        String command = parts[0].toLowerCase();
-        try {
+        while (true) {
+            System.out.print("[DoorManager] Door command: ");
+            String command = scanner.nextLine().trim().toLowerCase();
             switch (command) {
                 case "open" ->
-                    send(Codes.CMD, Codes.OPEN, 0);
+                        publishMessage(
+                                DoorProtocol.DOOR_COMMAND,
+                                DoorProtocol.OPEN);
                 case "close" ->
-                    send(Codes.CMD, Codes.CLOSE, 0);
+                        publishMessage(
+                                DoorProtocol.DOOR_COMMAND,
+                                DoorProtocol.CLOSE);
                 case "stop" ->
-                        send(Codes.CMD, Codes.STOP, 0);
-                case "speed" -> {
-                    requireArguments(parts, 2, command);
-                    int speed = Integer.parseInt(parts[1]);
-                    send(Codes.SPEED, Codes.SET_SPEED, speed);
-                }
-                case "ping" ->
-                    send(Codes.SYS, Codes.PING, 0);
-                case "press", "release" -> {
-                    requireArguments(parts, 2, command);
-                    setSensor(parts[1], command.equals("press"));
-                }
-                case "wait" -> {
-                    requireArguments(parts, 2, command);
-                    long milliseconds = Long.parseLong(parts[1]);
-                    if (milliseconds < 0) {
-                        log.error("Manager: Wait duration cannot be negative.");
-                    } else {
-                        sleep(milliseconds);
-                    }
-                }
-                case "echo" -> {
-                    String text = line.length() > 4 ? line.substring(4).trim() : "";
-                    log.note(text);
-                }
-                case "run" -> {
-                    requireArguments(parts, 2, command);
-                    Path child = Path.of(parts[1]);
-                    // resolve nested paths
-                    if (!child.isAbsolute() && scriptDirectory != null) {
-                        child = scriptDirectory.resolve(child);
-                    }
-                    runScript(child.normalize().toString());
+                        publishMessage(
+                                DoorProtocol.DOOR_COMMAND,
+                                DoorProtocol.STOP);
+                case "overload" ->
+                        publishMessage(
+                                DoorProtocol.DOOR_CONDITION,
+                                DoorProtocol.OVERLOAD_ACTIVE);
+                case "clearoverload" ->
+                        publishMessage(
+                                DoorProtocol.DOOR_CONDITION,
+                                DoorProtocol.OVERLOAD_CLEAR);
+                case "obstruction" ->
+                        publishMessage(
+                                DoorProtocol.DOOR_CONDITION,
+                                DoorProtocol.OBSTRUCTION_ACTIVE);
+                case "clearobstruction" ->
+                        publishMessage(
+                                DoorProtocol.DOOR_CONDITION,
+                                DoorProtocol.OBSTRUCTION_CLEAR);
+                case "quit" -> {
+                    System.out.println("[DoorManager] Test console closed.");
+                    return;
                 }
                 default ->
-                    log.error("Manager: Unknown script command: " + command);
+                        System.out.println("[DoorManager] Unknown command. Try again.");
             }
-        } catch (IllegalArgumentException e) {
-            log.error("Manager: Invalid argument in command '" + line + "': " + e.getMessage());
-        } catch (IndexOutOfBoundsException e) {
-            log.error("Manager: Missing argument for command '" + command + "'.");
-        }
-    }
-
-    private void setSensor(String which, boolean active) {
-        byte body;
-        if (which.equalsIgnoreCase("obstruction")) {
-            body = active ? Codes.OBSTRUCTION_ON : Codes.OBSTRUCTION_OFF;
-        } else if (which.equalsIgnoreCase("overload")) {
-            body = active ? Codes.OVERLOAD_ON : Codes.OVERLOAD_OFF;
-        } else {
-            log.error("Manager: Unknown sensor '" + which + "' (use obstruction or overload).");
-            return;
-        }
-        send(Codes.SENSOR, body, 0);
-    }
-
-    private void requireArguments(
-            String[] parts, int expected, String command) {
-        if (parts.length < expected) {
-            throw new IndexOutOfBoundsException("Manager: Missing argument for " + command);
-        }
-    }
-
-    private void send(byte topic, byte body, int value) {
-        Message message = new Message(topic, elevator, body, value);
-        log.sent(message);
-        messenger.publish(id, message);
-    }
-
-    // information about participant
-    public int getId() {
-        return id;
-    }
-    public byte getElevator() {
-        return elevator;
-    }
-
-    private void shutdown() {
-        running = false;
-        if (messenger != null) {
-            messenger.close();
-        }
-        log.note("Manager: Stopped.");
-    }
-
-    private static void sleep(long milliseconds) {
-        try {
-            Thread.sleep(milliseconds);
-        } catch(InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 }

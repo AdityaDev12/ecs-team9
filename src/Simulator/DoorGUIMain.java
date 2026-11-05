@@ -1,5 +1,6 @@
 package Simulator;
 
+import Archive.PlaceholderPanels;
 import javafx.application.Platform;
 import javafx.scene.Cursor;
 import javafx.scene.Group;

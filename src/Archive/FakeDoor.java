@@ -1,8 +1,4 @@
-package Harness;
-
-import Protocol.Codes;
-import Protocol.Message;
-import Protocol.Messenger;
+package Archive;
 
 /**
  * A pretend door with no window. It obeys CMD and SPEED and reports STATE and

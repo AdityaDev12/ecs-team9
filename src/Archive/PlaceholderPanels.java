@@ -1,5 +1,6 @@
-package Simulator;
+package Archive;
 
+import Simulator.DoorPanels;
 import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.paint.Color;

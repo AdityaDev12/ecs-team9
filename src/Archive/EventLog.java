@@ -1,6 +1,4 @@
-package Harness;
-
-import Protocol.Message;
+package Archive;
 
 /** Prints every message that goes out or comes in, with a timestamp. */
 public final class EventLog {

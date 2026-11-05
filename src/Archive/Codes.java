@@ -1,4 +1,4 @@
-package Protocol;
+package Archive;
 
 /** All the numbers the GUI and the harness have to agree on. */
 public final class Codes {

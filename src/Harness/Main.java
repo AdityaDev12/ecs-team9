@@ -16,6 +16,9 @@ public final class Main {
         //default door speed in ms
         double doorSpeed = 3000.0;
 
+        // demo script to run instead of the typed test console
+        String script = null;
+
         // read command-line arguments to override default settings
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -47,8 +50,16 @@ public final class Main {
                     }
                     doorSpeed = Double.parseDouble(args[++i]);
                 }
+                case "--script" -> {
+                    if (i + 1 >= args.length) {
+                        System.err.println("Main: Missing script filename.");
+                        return;
+                    }
+                    script = args[++i];
+                }
                 default -> {
                     System.err.println("Main: Unknown argument " + args[i]);
+                    printUsage();
                     return;
                 }
             }
@@ -66,7 +77,16 @@ public final class Main {
             return;
         }
         // Main only starts the subsystem Manager
-        Manager manager = new Manager(routerIp, routerPort, elevator, doorSpeed);
+        Manager manager = new Manager(routerIp, routerPort, elevator, doorSpeed, script);
         manager.start();
+    }
+
+    private static void printUsage() {
+        System.out.println("Usage: java Harness.Main "
+                + "[--router-ip IP] "
+                + "[--router-port PORT] "
+                + "[--elevator 1-4] "
+                + "[--door-speed MS] "
+                + "[--script FILE]");
     }
 }

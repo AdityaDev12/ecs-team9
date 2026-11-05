@@ -28,6 +28,8 @@ public class Manager {
     private DoorController controller;
     private Timeline busPoller; // checks SoftwareBus for incoming messages
 
+    private final double doorSpeed;
+
     // uncomment this constructor when testing on router
 //    public Manager(String routerIp, int routerPort, int elevator) {
 //
@@ -36,15 +38,17 @@ public class Manager {
 //    }
 
     // uncomment this constructor when testing locally
-    public Manager(String routerIp, int routerPort, int elevator) {
+    public Manager(String routerIp, int routerPort, int elevator, double doorSpeed) {
         this.bus = new SoftwareBus();
         this.elevator = elevator;
+        this.doorSpeed = doorSpeed;
     }
 
     // constructor uses shared bus supplied by Elevator Control Board
-    public Manager(SoftwareBus sharedBus, int elevator) {
+    public Manager(SoftwareBus sharedBus, int elevator, double doorSpeed) {
         this.bus = sharedBus;
         this.elevator = elevator;
+        this.doorSpeed = doorSpeed;
     }
 
     // start Door subsystem
@@ -70,7 +74,7 @@ public class Manager {
             // create DoorController
             // sensor clicks (overload / obstruction) are published on the bus
             controller = new DoorController(
-                    gui, elevator, this::publishDoorStatus,
+                    gui, elevator, doorSpeed, this::publishDoorStatus,
                     condition -> publishMessage(DoorProtocol.DOOR_CONDITION, condition)
             );
             controller.start();

@@ -13,6 +13,9 @@ public final class Main {
         int routerPort = 5001;
         int elevator = 1;
 
+        //default door speed in ms
+        double doorSpeed = 3000.0;
+
         // read command-line arguments to override default settings
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -37,6 +40,13 @@ public final class Main {
                     }
                     elevator = Integer.parseInt(args[++i]);
                 }
+                case "--door-speed" -> {
+                    if (i + 1 >= args.length) {
+                        System.err.println("Main: Missing door speed.");
+                        return;
+                    }
+                    doorSpeed = Double.parseDouble(args[++i]);
+                }
                 default -> {
                     System.err.println("Main: Unknown argument " + args[i]);
                     return;
@@ -51,8 +61,12 @@ public final class Main {
             System.err.println("Main: Elevator must be 1-4.");
             return;
         }
+        if (!Double.isFinite(doorSpeed) || doorSpeed <= 0) {
+            System.err.println("Main: Door speed must be a positive number.");
+            return;
+        }
         // Main only starts the subsystem Manager
-        Manager manager = new Manager(routerIp, routerPort, elevator);
+        Manager manager = new Manager(routerIp, routerPort, elevator, doorSpeed);
         manager.start();
     }
 }

@@ -10,9 +10,8 @@ import java.util.function.IntConsumer;
 public class DoorController {
     // door movement duration
     private static final int TICK_MS = 50;
-    private static final double FULL_TRAVEL_TIME_MS = 3000.0;
-    private static final double SPEED_PER_MS =
-            100.0 / FULL_TRAVEL_TIME_MS;
+    private final double fullTravelTimeMs;
+    private final double speedPerMs;
     private enum Motion {
         OPENING,
         CLOSING,
@@ -34,10 +33,21 @@ public class DoorController {
 
     // constructor
     public DoorController(
-            DoorGUIMain gui, int elevator,
+            DoorGUIMain gui, int elevator, double fullTravelTimeMs,
             IntConsumer statusReporter, IntConsumer conditionReporter) {
+
+        if(fullTravelTimeMs <= 0) {
+            throw new IllegalArgumentException(
+                    "Door travel time must be positive"
+            );
+        }
+
         this.gui = gui;
         this.elevator = elevator;
+        this.fullTravelTimeMs = fullTravelTimeMs;
+
+        this.speedPerMs = 100.0 / fullTravelTimeMs;
+
         this.statusReporter = statusReporter;
         this.conditionReporter = conditionReporter;
 
@@ -117,7 +127,7 @@ public class DoorController {
         if (motion == Motion.STOPPED) {
             return;
         }
-        double movement = SPEED_PER_MS * TICK_MS;
+        double movement = speedPerMs * TICK_MS;
         if (motion == Motion.OPENING) {
             percentOpen = Math.min(
                     100.0,

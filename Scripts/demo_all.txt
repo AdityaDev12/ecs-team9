@@ -1,8 +1,26 @@
-run Normal.txt
-wait 500
-run obstruction.txt
-wait 500
-run overload.txt
-wait 500
-run speed.txt
-echo ALL DONE
+# Door subsystem demo - publish / subscribe over the SoftwareBus.
+# Door travel takes about 3 seconds.
+
+echo --- DOOR DEMO, ELEVATOR 1 ---
+
+echo 1. opening the doors
+open
+wait 3400
+getoverload
+
+echo 2. closing the doors
+close
+wait 3400
+getobstruction
+
+echo 3. opening, then stopping part way
+open
+wait 1500
+stop
+wait 1500
+
+echo 4. closing again
+close
+wait 3400
+
+echo --- DEMO COMPLETE ---

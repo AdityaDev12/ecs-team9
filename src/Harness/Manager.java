@@ -10,6 +10,10 @@ import javafx.application.Application;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.UUID;
 import java.util.Scanner;
 
@@ -30,19 +34,23 @@ public class Manager {
     private volatile boolean overload = false; // local record of sensor condition
     private volatile boolean obstruction = false; // local record of sensor condition
     private double doorSpeed;
+    private final String scriptPath; // demo script, null when using the typed console
 
 //    // uncomment this constructor when testing on router
-//    public Manager(String routerIp, int routerPort, int elevator) {
+//    public Manager(String routerIp, int routerPort, int elevator, double doorSpeed, String scriptPath) {
 //
 //        this.bus = new SoftwareBus(routerIp, routerPort);
 //        this.elevator = elevator;
+//        this.doorSpeed = doorSpeed;
+//        this.scriptPath = scriptPath;
 //    }
 
     // uncomment this constructor when testing locally
-    public Manager(String routerIp, int routerPort, int elevator, double doorSpeed) {
+    public Manager(String routerIp, int routerPort, int elevator, double doorSpeed, String scriptPath) {
         this.bus = new SoftwareBus();
         this.elevator = elevator;
         this.doorSpeed = doorSpeed;
+        this.scriptPath = scriptPath;
     }
 
     // constructor uses shared bus supplied by Elevator Control Board
@@ -50,6 +58,7 @@ public class Manager {
         this.bus = sharedBus;
         this.elevator = elevator;
         this.doorSpeed = doorSpeed;
+        this.scriptPath = null;
     }
 
     // start Door subsystem
@@ -66,10 +75,12 @@ public class Manager {
                 DoorProtocol.DOOR_COMMAND,
                 elevator);
 
-        // start testing console
-        Thread testThread = new Thread(this::runTestConsole);
-        testThread.setDaemon(true);
-        testThread.start();
+        // start testing console when no demo script was given
+        if (scriptPath == null) {
+            Thread testThread = new Thread(this::runTestConsole, "test-console");
+            testThread.setDaemon(true);
+            testThread.start();
+        }
         // configure and launch Door Simulator
         DoorSimulatorMain.configure(elevator, gui -> {
             // create DoorController
@@ -80,6 +91,14 @@ public class Manager {
             controller.start();
             // start checking for incoming bus messages
             startBusPolling();
+
+            // the doors exist now, so it is safe to run the demo script
+            if (scriptPath != null) {
+                Thread scriptThread = new Thread(
+                        () -> runScript(scriptPath), "demo-script");
+                scriptThread.setDaemon(true);
+                scriptThread.start();
+            }
         });
         Application.launch(DoorSimulatorMain.class);
     }
@@ -174,33 +193,91 @@ public class Manager {
 
         while (true) {
             System.out.print("[DoorManager] Door command: ");
-            String command = scanner.nextLine().trim().toLowerCase();
-            switch (command) {
-                case "open" ->
-                        publishMessage(
-                                DoorProtocol.DOOR_COMMAND,
-                                DoorProtocol.OPEN);
-                case "close" ->
-                        publishMessage(
-                                DoorProtocol.DOOR_COMMAND,
-                                DoorProtocol.CLOSE);
-                case "stop" ->
-                        publishMessage(
-                                DoorProtocol.DOOR_COMMAND,
-                                DoorProtocol.STOP);
-                case "getoverload" ->
-                    System.out.println("[DoorManager] Overload: " + overload);
-                case "getobstruction" ->
-                        System.out.println("[DoorManager] Obstruction: " + obstruction);
-                case "quit" -> {
-                    System.out.println(
-                            "[DoorManager] Test console closed.");
-                    return;
-                }
-                default ->
-                        System.out.println(
-                                "[DoorManager] Unknown command. Try again.");
+            String line = scanner.nextLine().trim();
+            if (line.equalsIgnoreCase("quit")) {
+                System.out.println("[DoorManager] Test console closed.");
+                return;
             }
+            runCommand(line, null);
+        }
+    }
+
+    // reads a demo script and runs each line as a console command
+    private void runScript(String filename) {
+        Path path = Path.of(filename);
+        System.out.println("[DoorManager] Running script: " + path);
+        try (BufferedReader reader = Files.newBufferedReader(path)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String command = line.trim();
+                // skip blank lines and comments
+                if (command.isEmpty() || command.startsWith("#")) {
+                    continue;
+                }
+                runCommand(command, path.getParent());
+            }
+        } catch (IOException e) {
+            System.err.println("[DoorManager] Cannot read script "
+                    + path + ": " + e.getMessage());
+            return;
+        }
+        System.out.println("[DoorManager] Script finished: " + path);
+    }
+
+    // runs one command, typed or read from a script
+    private void runCommand(String line, Path scriptDirectory) {
+        String[] parts = line.split("\\s+", 2);
+        String command = parts[0].toLowerCase();
+        String argument = parts.length > 1 ? parts[1].trim() : "";
+
+        switch (command) {
+            case "open" ->
+                    publishMessage(
+                            DoorProtocol.DOOR_COMMAND,
+                            DoorProtocol.OPEN);
+            case "close" ->
+                    publishMessage(
+                            DoorProtocol.DOOR_COMMAND,
+                            DoorProtocol.CLOSE);
+            case "stop" ->
+                    publishMessage(
+                            DoorProtocol.DOOR_COMMAND,
+                            DoorProtocol.STOP);
+            case "getoverload" ->
+                    System.out.println("[DoorManager] Overload: " + overload);
+            case "getobstruction" ->
+                    System.out.println("[DoorManager] Obstruction: " + obstruction);
+            // script helpers
+            case "wait" ->
+                    sleep(argument);
+            case "echo" ->
+                    System.out.println("[DoorManager] " + argument);
+            case "run" -> {
+                Path child = Path.of(argument);
+                if (!child.isAbsolute() && scriptDirectory != null) {
+                    child = scriptDirectory.resolve(child);
+                }
+                runScript(child.normalize().toString());
+            }
+            default ->
+                    System.out.println(
+                            "[DoorManager] Unknown command. Try again.");
+        }
+    }
+
+    // pause between script steps
+    private void sleep(String milliseconds) {
+        try {
+            long duration = Long.parseLong(milliseconds);
+            if (duration < 0) {
+                System.err.println("[DoorManager] Wait cannot be negative.");
+                return;
+            }
+            Thread.sleep(duration);
+        } catch (NumberFormatException e) {
+            System.err.println("[DoorManager] Wait needs a number of milliseconds.");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }

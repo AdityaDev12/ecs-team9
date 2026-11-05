@@ -1,37 +1,35 @@
 package Simulator;
 
-import SoftwareBus.SoftwareBus;
 import javafx.application.Application;
 import javafx.stage.Stage;
+import java.util.function.Consumer;
 
 public class DoorSimulatorMain extends Application {
-    private static SoftwareBus bus;
+
     private static int elevator = 1;
-    // receives the bus created by subsystem
+
+    private static Consumer<DoorGUIMain> onGuiReady;
+
     public static void configure(
-            SoftwareBus softwareBus,
-            int elevatorNumber) {
-        bus = softwareBus;
+            int elevatorNumber,
+            Consumer<DoorGUIMain> guiCallback) {
+
         elevator = elevatorNumber;
+        onGuiReady = guiCallback;
     }
+
     @Override
     public void start(Stage stage) {
-        if (bus == null) {
-            throw new IllegalStateException(
-                    "DoorSimulatorMain: SoftwareBus.SoftwareBus not configured.");
-        }
+
         System.out.println(
-                "Starting Door Control for Elevator " + elevator);
-        // create visual representation
+                "[DoorSimMain] Starting Door Simulator for Elevator " + elevator);
+
         DoorGUIMain gui = new DoorGUIMain(stage);
+
         gui.attachDoorPanels(new DoorsGUI());
         gui.makeGUI();
-        // connect door controller directly to bus
-        DoorController controller =
-                new DoorController(bus, gui, elevator);
-        controller.start();
-        // stop the controller when GUI closes
-        stage.setOnCloseRequest(event ->
-                controller.stop());
+
+        // give the GUI to the Manager to connect to the controller
+        onGuiReady.accept(gui);
     }
 }

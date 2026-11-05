@@ -1,70 +1,42 @@
 package Simulator;
 
-import SoftwareBus.SoftwareBus;
-import SoftwareBus.Message;
 import Protocol.DoorProtocol;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
-
+import java.util.function.IntConsumer;
 
 public class DoorController {
-
     // door movement duration
     private static final int TICK_MS = 50;
     private static final double FULL_TRAVEL_TIME_MS = 3000.0;
     private static final double SPEED_PER_MS =
             100.0 / FULL_TRAVEL_TIME_MS;
-
     private enum Motion {
         OPENING,
         CLOSING,
         STOPPED
     }
 
-    private final SoftwareBus bus;
-    private final UUID doorId;
     private final int elevator;
-
     private final DoorGUIMain gui;
     private final Timeline ticker;
 
-    // publish messages sequentially without blocking GUI animation
-    private final ExecutorService publisher =
-            Executors.newSingleThreadExecutor();
+    // callback to report door states to Manager
+    private final IntConsumer statusReporter;
+    private int lastPublishedState = -1;
 
     private double percentOpen = 0.0;
-
     private Motion motion = Motion.STOPPED;
-
     private boolean overload = false;
     private boolean obstruction = false;
 
-    private int lastPublishedState = -1;
-
+    // constructor
     public DoorController(
-            SoftwareBus bus,
-            DoorGUIMain gui,
-            int elevator) {
-        this.bus = bus;
+            DoorGUIMain gui, int elevator, IntConsumer statusReporter) {
         this.gui = gui;
         this.elevator = elevator;
-
-        // Register with SoftwareBus.SoftwareBus
-        doorId = bus.register();
-
-        // Subscribe to messages for this elevator only
-        bus.subscribe(
-                doorId,
-                DoorProtocol.DOOR_COMMAND,
-                elevator);
-        bus.subscribe(
-                doorId,
-                DoorProtocol.DOOR_CONDITION,
-                elevator);
+        this.statusReporter = statusReporter;
 
         ticker = new Timeline(
                 new KeyFrame(
@@ -74,19 +46,24 @@ public class DoorController {
         );
         ticker.setCycleCount(Timeline.INDEFINITE);
     }
-    // begin automatic door operation
+
+
+    // starts automatic door operation
     public void start() {
         gui.onDoorPositionChanged(0.0);
         updateStatus();
         ticker.play();
     }
-    // stop animation and background publisher
+
+
+    // stop animation
     public void stop() {
         ticker.stop();
-        publisher.shutdown();
     }
 
+
     // door response methods
+
     public void openDoor() {
         if (percentOpen >= 100.0) {
             motion = Motion.STOPPED;
@@ -99,7 +76,7 @@ public class DoorController {
     }
 
     public void closeDoor() {
-        // never close while either safety condition is active.
+        // Never close while either safety condition is active.
         if (overload || obstruction) {
             if (percentOpen < 100.0) {
                 motion = Motion.OPENING;
@@ -127,11 +104,11 @@ public class DoorController {
         updateStatus();
     }
 
-    // received safety conditions
+    // safety conditions
     public void setOverload(boolean active) {
         overload = active;
         if (active) {
-            // overload requires doors remain open
+            // overload requires doors remain open.
             if (motion == Motion.CLOSING) {
                 motion = Motion.OPENING;
                 publishState(DoorProtocol.REVERSING);
@@ -152,7 +129,7 @@ public class DoorController {
     public void setObstruction(boolean active) {
         obstruction = active;
         if (active && motion == Motion.CLOSING) {
-            // reverse when obstruction is detected during closing
+            // reverse when obstruction detected during closing
             motion = Motion.OPENING;
             publishState(DoorProtocol.REVERSING);
         } else {
@@ -162,73 +139,21 @@ public class DoorController {
         updateStatus();
     }
 
-    // message processing
+    // automatic door movement
     private void tick() {
-        readMessages();
         moveDoor();
     }
 
-    private void readMessages() {
-        Message message;
-        // process all pending door commands
-        while ((message = bus.getMsg(
-                doorId,
-                DoorProtocol.DOOR_COMMAND,
-                elevator)) != null) {
-            executeCommand(message.body());
-        }
-        // process all pending safety conditions
-        while ((message = bus.getMsg(
-                doorId,
-                DoorProtocol.DOOR_CONDITION,
-                elevator)) != null) {
-            executeCondition(message.body());
-        }
-    }
-
-    private void executeCommand(int command) {
-        switch (command) {
-            case DoorProtocol.OPEN ->
-                    openDoor();
-            case DoorProtocol.CLOSE ->
-                    closeDoor();
-            case DoorProtocol.STOP ->
-                    stopDoor();
-            default ->
-                    System.err.println(
-                            "DoorController: Unknown command "
-                                    + command);
-        }
-    }
-
-    private void executeCondition(int condition) {
-        switch (condition) {
-            case DoorProtocol.OVERLOAD_ACTIVE ->
-                    setOverload(true);
-            case DoorProtocol.OVERLOAD_CLEAR ->
-                    setOverload(false);
-            case DoorProtocol.OBSTRUCTION_ACTIVE ->
-                    setObstruction(true);
-            case DoorProtocol.OBSTRUCTION_CLEAR ->
-                    setObstruction(false);
-            default ->
-                    System.err.println(
-                            "DoorController: Unknown condition "
-                                    + condition);
-        }
-    }
-
-    // automatic door movement
     private void moveDoor() {
         if (motion == Motion.STOPPED) {
             return;
         }
-        double movement =
-                SPEED_PER_MS * TICK_MS;
+        double movement = SPEED_PER_MS * TICK_MS;
         if (motion == Motion.OPENING) {
             percentOpen = Math.min(
                     100.0,
-                    percentOpen + movement);
+                    percentOpen + movement
+            );
             if (percentOpen >= 100.0) {
                 percentOpen = 100.0;
                 motion = Motion.STOPPED;
@@ -237,15 +162,15 @@ public class DoorController {
         } else if (motion == Motion.CLOSING) {
             percentOpen = Math.max(
                     0.0,
-                    percentOpen - movement);
+                    percentOpen - movement
+            );
             if (percentOpen <= 0.0) {
                 percentOpen = 0.0;
                 motion = Motion.STOPPED;
                 updateState();
             }
         }
-        gui.onDoorPositionChanged(
-                percentOpen / 100.0);
+        gui.onDoorPositionChanged(percentOpen / 100.0);
         updateStatus();
     }
 
@@ -268,20 +193,18 @@ public class DoorController {
         }
     }
 
+    // notify Manager when door state changes
     private void publishState(int state) {
-        // avoid repeated publishing of unchanged state
+        // avoid reporting unchanged state
         if (lastPublishedState == state) {
             return;
         }
         lastPublishedState = state;
-        Message message = new Message(
-                DoorProtocol.DOOR_STATUS,
-                elevator,
-                state);
-        publisher.execute(() ->
-                bus.publish(doorId, message));
+        statusReporter.accept(state);
     }
 
+
+    // update simulator's displayed status
     private void updateStatus() {
         String state;
         if (motion == Motion.OPENING) {
@@ -297,9 +220,11 @@ public class DoorController {
             state = "STOPPED";
         }
         gui.setStatus(
-                "Elevator " + elevator + ": " + state);
+                "Elevator " + elevator + ": " + state
+        );
     }
 
+    // accessors
     public double getPercentOpen() {
         return percentOpen;
     }
@@ -312,3 +237,4 @@ public class DoorController {
         return obstruction;
     }
 }
+

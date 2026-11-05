@@ -99,8 +99,8 @@ public class DoorGUIMain {
         clickable(overload, DoorSensor.OVERLOAD);
 
         // labels and status
-        Text help = text("O open   C close   S stop   +/- speed   G grid", 1, ROWS - 1, 12);
-        help.setFill(Color.GRAY);
+        //Text help = text("O open   C close   S stop   +/- speed   G grid", 1, ROWS - 1, 12);
+        //help.setFill(Color.GRAY);
         status = text("", 1, ROWS - 2.2, 14);
 
         root.getChildren().addAll(grid, wall, doorway, floor, doorLayer,
@@ -108,7 +108,7 @@ public class DoorGUIMain {
                 text("open", LEFT_POCKET_COL - 0.9, SENSOR_ROW - 0.6, 12),
                 text("closed", CENTER_COL - 1.2, SENSOR_ROW - 0.6, 12),
                 text("open", RIGHT_POCKET_END_COL - 0.9, SENSOR_ROW - 0.6, 12),
-                obstructionButton, overload, overloadText, status, help);
+                obstructionButton, overload, overloadText, status);
 
         Scene scene = new Scene(root, WIDTH_PX, HEIGHT_PX);
         scene.setOnKeyPressed(e -> {

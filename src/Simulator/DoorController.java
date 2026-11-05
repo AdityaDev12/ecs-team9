@@ -1,5 +1,6 @@
 package Simulator;
 
+import Archive.DoorSensor;
 import Protocol.DoorProtocol;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -24,19 +25,34 @@ public class DoorController {
 
     // callback to report door states to Manager
     private final IntConsumer statusReporter;
+    // callback to report sensor readings (overload / obstruction) to Manager
+    private final IntConsumer conditionReporter;
     private int lastPublishedState = -1;
 
     private double percentOpen = 0.0;
     private Motion motion = Motion.STOPPED;
-    private boolean overload = false;
-    private boolean obstruction = false;
 
     // constructor
     public DoorController(
-            DoorGUIMain gui, int elevator, IntConsumer statusReporter) {
+            DoorGUIMain gui, int elevator,
+            IntConsumer statusReporter, IntConsumer conditionReporter) {
         this.gui = gui;
         this.elevator = elevator;
         this.statusReporter = statusReporter;
+        this.conditionReporter = conditionReporter;
+
+        // sensors only report: clicking overload or obstruction sends active / clear
+        gui.addListener((sensor, active, fromUser) -> {
+            if (sensor == DoorSensor.OVERLOAD) {
+                conditionReporter.accept(active
+                        ? DoorProtocol.OVERLOAD_ACTIVE
+                        : DoorProtocol.OVERLOAD_CLEAR);
+            } else if (sensor == DoorSensor.OBSTRUCTION) {
+                conditionReporter.accept(active
+                        ? DoorProtocol.OBSTRUCTION_ACTIVE
+                        : DoorProtocol.OBSTRUCTION_CLEAR);
+            }
+        });
 
         ticker = new Timeline(
                 new KeyFrame(
@@ -76,18 +92,6 @@ public class DoorController {
     }
 
     public void closeDoor() {
-        // Never close while either safety condition is active.
-        if (overload || obstruction) {
-            if (percentOpen < 100.0) {
-                motion = Motion.OPENING;
-                publishState(DoorProtocol.OPENING);
-            } else {
-                motion = Motion.STOPPED;
-                publishState(DoorProtocol.HELD_OPEN);
-            }
-            updateStatus();
-            return;
-        }
         if (percentOpen <= 0.0) {
             motion = Motion.STOPPED;
             updateState();
@@ -101,41 +105,6 @@ public class DoorController {
     public void stopDoor() {
         motion = Motion.STOPPED;
         publishState(DoorProtocol.STOPPED);
-        updateStatus();
-    }
-
-    // safety conditions
-    public void setOverload(boolean active) {
-        overload = active;
-        if (active) {
-            // overload requires doors remain open.
-            if (motion == Motion.CLOSING) {
-                motion = Motion.OPENING;
-                publishState(DoorProtocol.REVERSING);
-            } else if (percentOpen < 100.0) {
-                motion = Motion.OPENING;
-                publishState(DoorProtocol.OPENING);
-            } else {
-                motion = Motion.STOPPED;
-                publishState(DoorProtocol.HELD_OPEN);
-            }
-        } else {
-            // clearing overload doesn't automatically close door
-            updateState();
-        }
-        updateStatus();
-    }
-
-    public void setObstruction(boolean active) {
-        obstruction = active;
-        if (active && motion == Motion.CLOSING) {
-            // reverse when obstruction detected during closing
-            motion = Motion.OPENING;
-            publishState(DoorProtocol.REVERSING);
-        } else {
-            // clearing obstruction doesn't automatically close door
-            updateState();
-        }
         updateStatus();
     }
 
@@ -181,11 +150,7 @@ public class DoorController {
         } else if (motion == Motion.CLOSING) {
             publishState(DoorProtocol.CLOSING);
         } else if (percentOpen >= 100.0) {
-            if (overload || obstruction) {
-                publishState(DoorProtocol.HELD_OPEN);
-            } else {
-                publishState(DoorProtocol.FULLY_OPEN);
-            }
+            publishState(DoorProtocol.FULLY_OPEN);
         } else if (percentOpen <= 0.0) {
             publishState(DoorProtocol.FULLY_CLOSED);
         } else {
@@ -212,8 +177,7 @@ public class DoorController {
         } else if (motion == Motion.CLOSING) {
             state = "CLOSING";
         } else if (percentOpen >= 100.0) {
-            state = (overload || obstruction)
-                    ? "HELD OPEN" : "FULLY OPEN";
+            state = "FULLY OPEN";
         } else if (percentOpen <= 0.0) {
             state = "FULLY CLOSED";
         } else {
@@ -228,13 +192,4 @@ public class DoorController {
     public double getPercentOpen() {
         return percentOpen;
     }
-
-    public boolean isOverloaded() {
-        return overload;
-    }
-
-    public boolean isObstructed() {
-        return obstruction;
-    }
 }
-

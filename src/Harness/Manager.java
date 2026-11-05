@@ -60,11 +60,6 @@ public class Manager {
                 managerId,
                 DoorProtocol.DOOR_COMMAND,
                 elevator);
-        // subscribe to incoming safety conditions
-        bus.subscribe(
-                managerId,
-                DoorProtocol.DOOR_CONDITION,
-                elevator);
 
         // start testing console
         Thread testThread = new Thread(this::runTestConsole);
@@ -73,8 +68,10 @@ public class Manager {
         // configure and launch Door Simulator
         DoorSimulatorMain.configure(elevator, gui -> {
             // create DoorController
+            // sensor clicks (overload / obstruction) are published on the bus
             controller = new DoorController(
-                    gui, elevator, this::publishDoorStatus
+                    gui, elevator, this::publishDoorStatus,
+                    condition -> publishMessage(DoorProtocol.DOOR_CONDITION, condition)
             );
             controller.start();
             // start checking for incoming bus messages
@@ -105,13 +102,6 @@ public class Manager {
                 elevator)) != null) {
             executeCommand(message.body());
         }
-        // process safety conditions
-        while ((message = bus.getMsg(
-                managerId,
-                DoorProtocol.DOOR_CONDITION,
-                elevator)) != null) {
-            executeCondition(message.body());
-        }
     }
 
     // tell DoorController what operation to perform
@@ -125,22 +115,6 @@ public class Manager {
                     controller.stopDoor();
             default ->
                     System.err.println("[DoorManager] Unknown command: " + command);
-        }
-    }
-
-    // tell DoorController about safety conditions
-    private void executeCondition(int condition) {
-        switch (condition) {
-            case DoorProtocol.OVERLOAD_ACTIVE ->
-                    controller.setOverload(true);
-            case DoorProtocol.OVERLOAD_CLEAR ->
-                    controller.setOverload(false);
-            case DoorProtocol.OBSTRUCTION_ACTIVE ->
-                    controller.setObstruction(true);
-            case DoorProtocol.OBSTRUCTION_CLEAR ->
-                    controller.setObstruction(false);
-            default ->
-                    System.err.println("[DoorManager] Unknown condition: " + condition);
         }
     }
 
@@ -221,4 +195,3 @@ public class Manager {
         }
     }
 }
-
